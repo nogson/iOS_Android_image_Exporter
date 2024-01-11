@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      main {
+        padding: 20px;
+        font-size: 14px;
+      }
+      .list {
+        display: flex;
+        margin-bottom: 20px;
+        padding: 0 20px 20px 20px;
+        border-bottom: 1px solid #eaeaea;
+      }
+      .list dt {
+        width: 60px;
+        font-weight: 700;
+      }
+      .radios label,
+      .checkbox label {
+        margin-right: 20px;
+      }
+
+      footer {
+        display: flex;
+        justify-content: center;
+      }
+
+      .btn {
+        width: 200px;
+        padding: 10px 20px;
+        border-radius: 4px;
+        border: none;
+        background-color: #3496ff;
+        cursor: pointer;
+        color: #fff;
+        font-weight: bold;
+      }
+      .disabledBtn {
+        display: none;
+        width: 200px;
+        padding: 10px 20px;
+        border-radius: 4px;
+        border: none;
+        background-color: #969696;
+        color: #fff;
+        font-weight: bold;
+      }
+
+      .isDisabled .btn {
+        display: none;
+      }
+
+      .isDisabled .disabledBtn {
+        display: block;
+      }
+    </style>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.0/FileSaver.min.js"
+      defer
+    ></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+      defer
+    ></script>
+  </head>
+  <body>
+    <main>
+      <dl class="list">
+        <dt>Format</dt>
+        <dd>
+          <div class="radios">
+            <label
+              ><input type="radio" name="format" value="PNG" checked />
+              <span>PNG</span>
+            </label>
+            <label
+              ><input type="radio" name="format" value="JPG" />
+              <span>JPG</span>
+            </label>
+          </div>
+        </dd>
+      </dl>
+      <dl class="list">
+        <dt>Platform</dt>
+        <dd>
+          <div class="checkbox">
+            <label>
+              <input type="checkbox" name="platform" value="iOS" checked />
+              <span>iOS</span>
+            </label>
+            <label>
+              <input type="checkbox" name="platform" value="Android" checked />
+              <span>Android</span>
+            </label>
+          </div>
+        </dd>
+      </dl>
+      <footer>
+        <div id="btnWrap">
+          <button id="btn" class="btn">Export</button>
+          <button class="disabledBtn">Exporting...</button>
+        </div>
+      </footer>
+    </main>
+    <script>
+      const btn = document.getElementById("btn");
+      const btnWrap = document.getElementById("btnWrap");
+
+      btn.addEventListener("click", () => {
+        btnWrap.classList.add("isDisabled");
+
+        const format = document.querySelector(
+          'input[name="format"]:checked'
+        ).value;
+        const platform = Array.from(
+          document.querySelectorAll('input[name="platform"]:checked')
+        ).map((el) => el.value);
+
+        parent.postMessage(
+          {
+            pluginMessage: {
+              type: "export",
+              format,
+              platform,
+            },
+          },
+          "*"
+        );
+      });
+
+      window.onmessage = (event) => {
+        const message = event.data.pluginMessage;
+        if (!message) return;
+
+        if (message.type === "exportImage") {
+          const zip = new JSZip();
+          const androidSuffix = [
+            "_ldpi",
+            "_mdpi",
+            "_hdpi",
+            "_xhdpi",
+            "_xxhdpi",
+            "_xxxhdpi",
+          ];
+          message.images.forEach((img, index) => {
+            const imgBlob = new Blob([img], {
+              type: `image/${message.format}`,
+            });
+            if (message.names[index].includes("_IOS_")) {
+              const name = message.names[index].replace("_IOS_", "");
+              zip.folder("iOS").file(`${name}.${message.format}`, imgBlob);
+            } else {
+              const name = message.names[index].replace("_ANDROID_", "");
+
+              const density =
+                androidSuffix.find((suffix) => name.includes(suffix)) || "";
+              zip
+                .folder("Android")
+                .folder(density.replace("_", ""))
+                .file(
+                  `${name.replace(density, "")}.${message.format}`,
+                  imgBlob
+                );
+            }
+          });
+
+          zip
+            .generateAsync({ type: "blob" })
+            .then((blob) => {
+              saveAs(blob, "images.zip");
+              btnWrap.classList.remove("isDisabled");
+            })
+            .catch((error) => console.error("Error generating ZIP:", error));
+        }
+
+        if (message.type === "unselectedNode") {
+          btnWrap.classList.remove("isDisabled");
+          alert("Node not selected");
+        }
+
+        if (message.type === "hasDuplicateValue") {
+          alert("選択中のノードの中に名前が重複しているものがあります");
+        }
+      };
+    </script>
+  </body>
+</html>

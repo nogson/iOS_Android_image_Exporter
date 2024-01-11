@@ -21,35 +21,43 @@ figma.on("run", ({ parameters }: RunEvent) => {
           const width = node.width;
           console.log(platform);
           if (platform.find((p) => p === "iOS")) {
-            iOSImages = iosSuffix.map((suffix, index) =>
-              node.exportAsync({
+            console.log("iOS");
+            iOSImages = iosSuffix.map((suffix, index) => {
+              return node.exportAsync({
                 format,
-                constraint: { type: "SCALE", value: index + 1 },
-              })
-            );
+                constraint: {
+                  type: "WIDTH",
+                  value: Math.round(width * (index + 1)),
+                },
+              });
+            });
           }
           if (platform.find((p) => p === "Android")) {
             androidImages = androidSuffix.map((suffix, index) => {
               return node.exportAsync({
                 format,
                 constraint: {
-                  type: "SCALE",
-                  value: androidScale[index],
+                  type: "WIDTH",
+                  value: Math.round(width * androidScale[index]),
                 },
               });
             });
           }
-          console.log([...iOSImages, ...androidImages]);
           return [...iOSImages, ...androidImages];
         })
         .flat();
 
+      // 後でファイル名からプラットフォームを識別するために_IOS_など利用されなそうな文字列を付与する
       const names = nodes
-        .map((node) => [
-          // 後でファイル名からプラットフォームを識別するために_IOS_など利用されなそうな文字列を付与する
-          ...iosSuffix.map((suffix) => `_IOS_${node.name}${suffix}`),
-          ...androidSuffix.map((suffix) => `_ANDROID_${node.name}_${suffix}`),
-        ])
+        .map((node) => {
+          if (platform.find((p) => p === "iOS")) {
+            return iosSuffix.map((suffix) => `_IOS_${node.name}${suffix}`);
+          } else if (platform.find((p) => p === "Android")) {
+            return androidSuffix.map(
+              (suffix) => `_ANDROID_${node.name}_${suffix}`
+            );
+          }
+        })
         .flat();
 
       //node.nameに重複がある場合はエラーを返す
