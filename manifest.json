@@ -1,0 +1,17 @@
+{
+  "name": "iOS Android image Exporter",
+  "id": "1322863451202320448",
+  "api": "1.0.0",
+  "main": "code.js",
+  "capabilities": [],
+  "enableProposedApi": false,
+  "editorType": ["figma", "figjam"],
+  "ui": "ui.html",
+  "networkAccess": {
+    "allowedDomains": [
+      "https://fastly.picsum.photos",
+      "https://picsum.photos",
+      "https://cdnjs.cloudflare.com"
+    ]
+  }
+}
