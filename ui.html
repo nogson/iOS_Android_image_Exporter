@@ -110,14 +110,19 @@
       const btnWrap = document.getElementById("btnWrap");
 
       btn.addEventListener("click", () => {
-        btnWrap.classList.add("isDisabled");
-
         const format = document.querySelector(
           'input[name="format"]:checked'
         ).value;
         const platform = Array.from(
           document.querySelectorAll('input[name="platform"]:checked')
         ).map((el) => el.value);
+
+        if (platform.length === 0) {
+          alert("Please select a platform");
+          return;
+        }
+
+        btnWrap.classList.add("isDisabled");
 
         parent.postMessage(
           {
@@ -145,6 +150,7 @@
             "_xxhdpi",
             "_xxxhdpi",
           ];
+
           message.images.forEach((img, index) => {
             const imgBlob = new Blob([img], {
               type: `image/${message.format}`,
@@ -172,6 +178,7 @@
             .then((blob) => {
               saveAs(blob, "images.zip");
               btnWrap.classList.remove("isDisabled");
+              parent.postMessage({ pluginMessage: {type: 'exportComplete'} }, '*')
             })
             .catch((error) => console.error("Error generating ZIP:", error));
         }

@@ -19,9 +19,8 @@ figma.on("run", ({ parameters }: RunEvent) => {
           let iOSImages: Promise<Uint8Array>[] = [];
           let androidImages: Promise<Uint8Array>[] = [];
           const width = node.width;
-          console.log(platform);
+
           if (platform.find((p) => p === "iOS")) {
-            console.log("iOS");
             iOSImages = iosSuffix.map((suffix, index) => {
               return node.exportAsync({
                 format,
@@ -48,25 +47,25 @@ figma.on("run", ({ parameters }: RunEvent) => {
         .flat();
 
       // 後でファイル名からプラットフォームを識別するために_IOS_など利用されなそうな文字列を付与する
-      const names = nodes
-        .map((node) => {
-          if (platform.find((p) => p === "iOS")) {
-            return iosSuffix.map((suffix) => `_IOS_${node.name}${suffix}`);
-          } else if (platform.find((p) => p === "Android")) {
-            return androidSuffix.map(
-              (suffix) => `_ANDROID_${node.name}_${suffix}`
-            );
-          }
-        })
-        .flat();
+      let names: string[][] = [];
+      nodes.forEach((node) => {
+        if (platform.find((p) => p === "iOS")) {
+          names.push(iosSuffix.map((suffix) => `_IOS_${node.name}${suffix}`));
+        }
+        if (platform.find((p) => p === "Android")) {
+          names.push(
+            androidSuffix.map((suffix) => `_ANDROID_${node.name}_${suffix}`)
+          );
+        }
+      });
 
       //node.nameに重複がある場合はエラーを返す
-      if (hasDuplicateValue(names)) {
+      if (hasDuplicateValue(names.flat())) {
         figma.ui.postMessage({ type: "hasDuplicateValue" });
         return;
       }
       const images = await Promise.all(imagesPromise);
-      return { images, names, format: format.toLowerCase() };
+      return { images, names: names.flat(), format: format.toLowerCase() };
     } catch (error) {
       console.error("画像の書き出しエラー", error);
       throw error;
@@ -95,6 +94,9 @@ figma.on("run", ({ parameters }: RunEvent) => {
       } else {
         figma.ui.postMessage({ type: "unselectedNode" });
       }
+    }
+    if (message.type === "exportComplete") {
+      figma.closePlugin();
     }
   };
 });
