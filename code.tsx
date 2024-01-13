@@ -4,15 +4,56 @@ figma.on("run", ({ parameters }: RunEvent) => {
   const iosSuffix = ["", "@2x", "@3x"];
   const androidSuffix = ["ldpi", "mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"];
   const androidScale = [0.75, 1, 1.5, 2, 3, 4];
+  const MAX_SIZE = 4096;
 
   type FormatType = "JPG" | "PNG" | "SVG" | "PDF";
   type NodesType = readonly SceneNode[];
 
-  const exportImages = async (
+  figma.ui.onmessage = async (message) => {
+    if (message.type === "export") {
+      const nodes = figma.currentPage.selection;
+
+      if (nodes.length > 0) {
+        try {
+          const result = await exportImages(
+            nodes,
+            message.format,
+            message.platform
+          );
+
+          figma.ui.postMessage({
+            type: "exportImage",
+            ...result,
+          });
+        } catch (error) {
+          figma.ui.postMessage({ type: "exportError", error });
+        }
+      } else {
+        figma.ui.postMessage({ type: "unselectedNode" });
+      }
+    }
+    if (message.type === "exportComplete") {
+      figma.closePlugin();
+    }
+  };
+
+  setWarningMessage(
+    figma.currentPage.selection,
+    figma.root.getPluginData("platform").split(",")
+  );
+
+  figma.on("selectionchange", () => {
+    setWarningMessage(
+      figma.currentPage.selection,
+      figma.root.getPluginData("platform").split(",")
+    );
+  });
+
+  async function exportImages(
     nodes: NodesType,
     format: FormatType,
     platform: string[]
-  ) => {
+  ) {
     try {
       const imagesPromise = nodes
         .map((node) => {
@@ -59,44 +100,49 @@ figma.on("run", ({ parameters }: RunEvent) => {
         }
       });
 
-      //node.nameに重複がある場合はエラーを返す
-      if (hasDuplicateValue(names.flat())) {
-        figma.ui.postMessage({ type: "hasDuplicateValue" });
-        return;
-      }
       const images = await Promise.all(imagesPromise);
       return { images, names: names.flat(), format: format.toLowerCase() };
     } catch (error) {
-      console.error("画像の書き出しエラー", error);
-      throw error;
+      figma.ui.postMessage({
+        type: "exportError",
+      });
+    }
+  }
+
+  function hasDuplicateValue(array: string[]) {
+    const set = new Set(array);
+    return array.length !== set.size;
+  }
+
+  function checkMaxSize(nodes: NodesType, platform: string[]) {
+    // nodeの最大サイズをチェック 4096px
+    const width = Math.max(...nodes.map((node) => node.width));
+    const height = Math.max(...nodes.map((node) => node.height));
+    const maxScale = platform.find((p) => p === "Android") ? 4 : 3;
+    return width * maxScale < MAX_SIZE || height * maxScale < MAX_SIZE;
+  }
+
+  function setWarningMessage(nodes: NodesType, platform: string[]) {
+    let message: string[] = [];
+    const names = nodes.map((node) => node.name);
+    if (nodes.length <= 0) {
+      message = [];
     }
 
-    function hasDuplicateValue(array: string[]) {
-      const set = new Set(array);
-      return array.length !== set.size;
+    if (!checkMaxSize(nodes, platform)) {
+      message.push(
+        "Contains images that exceed the maximum export size of 4096px."
+      );
     }
-  };
 
-  figma.ui.onmessage = async (message) => {
-    if (message.type === "export") {
-      const nodes = figma.currentPage.selection;
-      if (nodes.length > 0) {
-        try {
-          const result = await exportImages(
-            nodes,
-            message.format,
-            message.platform
-          );
-          figma.ui.postMessage({ type: "exportImage", ...result });
-        } catch (error) {
-          figma.ui.postMessage({ type: "exportError", error });
-        }
-      } else {
-        figma.ui.postMessage({ type: "unselectedNode" });
-      }
+    //node.nameに重複がある場合はエラーを返す
+    if (hasDuplicateValue(names)) {
+      message.push("Some of the selected nodes have duplicate names");
     }
-    if (message.type === "exportComplete") {
-      figma.closePlugin();
-    }
-  };
+
+    figma.ui.postMessage({
+      type: "waringMessage",
+      message,
+    });
+  }
 });

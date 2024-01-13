@@ -22,12 +22,6 @@
       .checkbox label {
         margin-right: 20px;
       }
-
-      footer {
-        display: flex;
-        justify-content: center;
-      }
-
       .btn {
         width: 200px;
         padding: 10px 20px;
@@ -55,6 +49,16 @@
 
       .isDisabled .disabledBtn {
         display: block;
+      }
+
+      #btnWrap {
+        display: flex;
+        justify-content: center;
+      }
+      .messageWrap li {
+        margin-bottom: 10px;
+        color: #ff8400;
+        font-size: 10px;
       }
     </style>
     <script
@@ -99,6 +103,8 @@
         </dd>
       </dl>
       <footer>
+        <div id="messageWrap" class="messageWrap"></div>
+
         <div id="btnWrap">
           <button id="btn" class="btn">Export</button>
           <button class="disabledBtn">Exporting...</button>
@@ -108,6 +114,7 @@
     <script>
       const btn = document.getElementById("btn");
       const btnWrap = document.getElementById("btnWrap");
+      const messageWrap = document.getElementById("messageWrap");
 
       btn.addEventListener("click", () => {
         const format = document.querySelector(
@@ -123,24 +130,25 @@
         }
 
         btnWrap.classList.add("isDisabled");
-
-        parent.postMessage(
-          {
-            pluginMessage: {
-              type: "export",
-              format,
-              platform,
+        setTimeout(() => {
+          parent.postMessage(
+            {
+              pluginMessage: {
+                type: "export",
+                format,
+                platform,
+              },
             },
-          },
-          "*"
-        );
+            "*"
+          );
+        }, 500);
       });
 
       window.onmessage = (event) => {
-        const message = event.data.pluginMessage;
-        if (!message) return;
+        const params = event.data.pluginMessage;
+        if (!params) return;
 
-        if (message.type === "exportImage") {
+        if (params.type === "exportImage") {
           const zip = new JSZip();
           const androidSuffix = [
             "_ldpi",
@@ -151,25 +159,22 @@
             "_xxxhdpi",
           ];
 
-          message.images.forEach((img, index) => {
+          params.images.forEach((img, index) => {
             const imgBlob = new Blob([img], {
-              type: `image/${message.format}`,
+              type: `image/${params.format}`,
             });
-            if (message.names[index].includes("_IOS_")) {
-              const name = message.names[index].replace("_IOS_", "");
-              zip.folder("iOS").file(`${name}.${message.format}`, imgBlob);
+            if (params.names[index].includes("_IOS_")) {
+              const name = params.names[index].replace("_IOS_", "");
+              zip.folder("iOS").file(`${name}.${params.format}`, imgBlob);
             } else {
-              const name = message.names[index].replace("_ANDROID_", "");
+              const name = params.names[index].replace("_ANDROID_", "");
 
               const density =
                 androidSuffix.find((suffix) => name.includes(suffix)) || "";
               zip
                 .folder("Android")
-                .folder(density.replace("_", ""))
-                .file(
-                  `${name.replace(density, "")}.${message.format}`,
-                  imgBlob
-                );
+                .folder(density.replace("_", "drawable-"))
+                .file(`${name.replace(density, "")}.${params.format}`, imgBlob);
             }
           });
 
@@ -178,18 +183,32 @@
             .then((blob) => {
               saveAs(blob, "images.zip");
               btnWrap.classList.remove("isDisabled");
-              parent.postMessage({ pluginMessage: {type: 'exportComplete'} }, '*')
+              parent.postMessage(
+                { pluginMessage: { type: "exportComplete" } },
+                "*"
+              );
             })
             .catch((error) => console.error("Error generating ZIP:", error));
         }
 
-        if (message.type === "unselectedNode") {
+        if (params.type === "unselectedNode") {
           btnWrap.classList.remove("isDisabled");
           alert("Node not selected");
         }
 
-        if (message.type === "hasDuplicateValue") {
-          alert("選択中のノードの中に名前が重複しているものがあります");
+        if (params.type === "exportError") {
+          btnWrap.classList.remove("isDisabled");
+          alert("An error occurred while exporting the image.");
+        }
+
+        if (params.type === "waringMessage") {
+          messageWrap.innerHTML = "";
+
+          params.message.forEach((msg) => {
+            const li = document.createElement("li");
+            li.innerHTML = msg;
+            messageWrap.appendChild(li);
+          });
         }
       };
     </script>
