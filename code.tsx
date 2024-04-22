@@ -12,7 +12,6 @@ figma.on("run", ({ parameters }: RunEvent) => {
   figma.ui.onmessage = async (message) => {
     if (message.type === "export") {
       const nodes = figma.currentPage.selection;
-
       if (nodes.length > 0) {
         try {
           const result = await exportImages(
@@ -20,7 +19,6 @@ figma.on("run", ({ parameters }: RunEvent) => {
             message.format,
             message.platform
           );
-
           figma.ui.postMessage({
             type: "exportImage",
             ...result,
@@ -60,7 +58,6 @@ figma.on("run", ({ parameters }: RunEvent) => {
           let iOSImages: Promise<Uint8Array>[] = [];
           let androidImages: Promise<Uint8Array>[] = [];
           const width = node.width;
-
           if (platform.find((p) => p === "iOS")) {
             iOSImages = iosSuffix.map((suffix, index) => {
               return node.exportAsync({
@@ -122,6 +119,11 @@ figma.on("run", ({ parameters }: RunEvent) => {
     return width * maxScale < MAX_SIZE || height * maxScale < MAX_SIZE;
   }
 
+  function checkPosition(nodes: NodesType) {
+    // 座標が小数点以下を含む場合はエラーを返す
+    return nodes.some((node) => node.x % 1 !== 0 || node.y % 1 !== 0);
+  }
+
   function setWarningMessage(nodes: NodesType, platform: string[]) {
     let message: string[] = [];
     const names = nodes.map((node) => node.name);
@@ -138,6 +140,10 @@ figma.on("run", ({ parameters }: RunEvent) => {
     //node.nameに重複がある場合はエラーを返す
     if (hasDuplicateValue(names)) {
       message.push("Some of the selected nodes have duplicate names");
+    }
+
+    if (checkPosition(nodes)) {
+      message.push("Node positions contain a decimal point");
     }
 
     figma.ui.postMessage({
