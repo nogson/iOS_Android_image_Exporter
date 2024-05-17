@@ -1,4 +1,4 @@
-figma.showUI(__html__, { width: 400, height: 220 });
+figma.showUI(__html__, { width: 400, height: 300 });
 
 figma.on("run", ({ parameters }: RunEvent) => {
   const iosSuffix = ["", "@2x", "@3x"];
@@ -78,6 +78,8 @@ figma.on("run", ({ parameters }: RunEvent) => {
                   value: Math.round(width * androidScale[index]),
                 },
               });
+
+              
             });
           }
           return [...iOSImages, ...androidImages];
