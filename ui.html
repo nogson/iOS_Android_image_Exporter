@@ -166,15 +166,18 @@
           image.onload = () => {
             const canvas = document.createElement("canvas");
             const context = canvas.getContext("2d");
-            canvas.width = image.width;
-            canvas.height = image.height;
+            // +2ば9patch用の線を描画するための余白
+            const canvasWidth = image.width + 2;
+            const canvasHeight = image.height + 2;
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
 
-            context.drawImage(image, 0, 0);
+            context.drawImage(image, 1, 1);
             context.fillStyle = "#000000";
 
             // 9-patch lines
-            context.fillRect(0, Math.round(image.height / 2), 1, 2);
-            context.fillRect(Math.round(image.width / 2), 0, 2, 1);
+            context.fillRect(0, Math.round(canvasWidth / 2), 1, 2);
+            context.fillRect(Math.round(canvasHeight / 2), 0, 2, 1);
 
             canvas.toBlob((blob) => {
               resolve(blob);
