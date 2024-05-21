@@ -171,13 +171,13 @@
             const canvasHeight = image.height + 2;
             canvas.width = canvasWidth;
             canvas.height = canvasHeight;
-
             context.drawImage(image, 1, 1);
             context.fillStyle = "#000000";
 
             // 9-patch lines
-            context.fillRect(0, Math.round(canvasWidth / 2), 1, 2);
-            context.fillRect(Math.round(canvasHeight / 2), 0, 2, 1);
+            //  ctx.fillRect(x, y, width, height);
+            context.fillRect(0, Math.round((canvasHeight - 2) / 2), 1, 2);
+            context.fillRect(Math.round((canvasWidth - 2) / 2), 0, 2, 1);
 
             canvas.toBlob((blob) => {
               resolve(blob);
