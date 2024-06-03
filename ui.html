@@ -173,78 +173,173 @@
         return new Promise((resolve, reject) => {
           const image = new Image();
           image.onload = () => {
-            const ninePatchPadding = 4;
             const canvas = document.createElement("canvas");
             const context = canvas.getContext("2d");
-            const padding = Math.round(scale * ninePatchPadding);
-            //絵柄のサイズ + 余白
-            const canvasWidth = image.width - padding + 2;
-            const canvasHeight = image.height - padding + 2;
+            // 4はAndroidの0.75x、1.5xでアンチエイリアスが表示されるのでアンチエイリアス分に上下左右に1pxずつ余白を取る
+            const padding = Math.round(scale * 4);
+            // 上下左右patchの幅を1pxとる
+            const patchArea = 2;
+            // 元画像から不要な余白を取り除いたサイズ
+            const canvasWidth = image.width - padding + patchArea;
+            const canvasHeight = image.height - padding + patchArea;
             canvas.width = canvasWidth;
             canvas.height = canvasHeight;
             context.drawImage(
               image,
               Math.round(padding / 2),
               Math.round(padding / 2),
-              canvasWidth - 2,
-              canvasHeight - 2,
+              canvasWidth - patchArea,
+              canvasHeight - patchArea,
               1,
               1,
-              canvasWidth - 2,
-              canvasHeight - 2
+              canvasWidth - patchArea,
+              canvasHeight - patchArea
             );
+
             context.fillStyle = "#000000";
 
-            // 9-patch lines
-            fillData.top.forEach((data) => {
+            // 1. 重複するコードの抽出
+            const drawLine = (data, x, y, width, height) => {
               const start = Math.round(data.start * scale);
               const end = Math.round(data.end * scale);
               context.fillRect(
-                start,
-                0,
-                end - start + Math.round(1 * scale),
-                1
+                x(start),
+                y(start),
+                width(end - start),
+                height(end - start)
+              );
+            };
+
+            // 2. Math.round(1 * scale) の計算
+            const scaleRound = Math.round(1 * scale);
+
+            fillData.top.forEach((data) => {
+              drawLine(
+                data,
+                (s) => s,
+                () => 0,
+                (s) => s + scaleRound,
+                () => 1
               );
             });
 
             fillData.bottom.forEach((data) => {
-              const start = Math.round(data.start * scale);
-              const end = Math.round(data.end * scale);
-              context.fillRect(
-                start,
-                canvasHeight - 1,
-                end - start + Math.round(1 * scale),
-                1
+              drawLine(
+                data,
+                (s) => s,
+                () => canvasHeight - 1,
+                (s) => s + scaleRound,
+                () => 1
               );
             });
 
             fillData.left.forEach((data) => {
-              const start = Math.round(data.start * scale);
-              const end = Math.round(data.end * scale);
-              context.fillRect(
-                0,
-                start,
-                1,
-                end - start + Math.round(1 * scale)
+              drawLine(
+                data,
+                () => 0,
+                (s) => s,
+                () => 1,
+                (s) => s + scaleRound
               );
             });
 
             fillData.right.forEach((data) => {
-              const start = Math.round(data.start * scale);
-              const end = Math.round(data.end * scale);
-              context.fillRect(
-                canvasWidth - 1,
-                start,
-                1,
-                end - start + Math.round(1 * scale)
+              drawLine(
+                data,
+                () => canvasWidth - 1,
+                (s) => s,
+                () => 1,
+                (s) => s + scaleRound
               );
             });
+
             canvas.toBlob((blob) => {
               resolve(blob);
             });
           };
           image.src = URL.createObjectURL(imgBlob);
         });
+      };
+
+      const checkFill = function (data) {
+        const format = document.querySelector(
+          'input[name="format"]:checked'
+        ).value;
+
+        if (format === "JPG") {
+          return data.r !== 255;
+        } else {
+          return data.a !== 0;
+        }
+      };
+
+      const processFillData = (fillData) => {
+        const posDataArray = [];
+        let posData = null;
+        // 余白が1pxあるのでその部分があるとずれるので取り除く
+        const dataArr = fillData.splice(2, fillData.length - 4);
+
+        dataArr.forEach((value, index) => {
+          const isFill = checkFill(value);
+          if (isFill && !posData) {
+            posData = {
+              start: index + 1,
+            };
+          } else if (!isFill && !!posData) {
+            posData.end = index;
+            posDataArray.push(posData);
+            posData = null;
+          }
+        });
+
+        return posDataArray;
+      };
+
+      const createRgbaArray = (data) => {
+        let result = [];
+        for (let i = 0; i < data.length; i += 4) {
+          let obj = {
+            r: data[i],
+            g: data[i + 1],
+            b: data[i + 2],
+            a: data[i + 3],
+          };
+          result.push(obj);
+        }
+        return result;
+      };
+
+      // 余白に塗りがないかチェック
+      const checkPaddingArea = ({ image, context }) => {
+        const topPosRgbaData = createRgbaArray(
+          context.getImageData(1, 1, image.width - 2, 1).data
+        );
+
+        const bottomPosRgbaData = createRgbaArray(
+          context.getImageData(1, image.height - 2, image.width - 2, 1).data
+        );
+
+        const leftPosRgbaData = createRgbaArray(
+          context.getImageData(1, 1, 1, image.height - 2).data
+        );
+        const rightPosRgbaData = createRgbaArray(
+          context.getImageData(image.width - 2, 1, 1, image.height - 2).data
+        );
+
+        const arr = [
+          topPosRgbaData,
+          bottomPosRgbaData,
+          leftPosRgbaData,
+          rightPosRgbaData,
+        ].flat();
+
+        const isFill = arr
+          .map((data) => {
+            return checkFill(data);
+          })
+          .includes(true);
+
+        return isFill;
       };
 
       const getBlackFillPosition = (imgBlob) => {
@@ -256,92 +351,34 @@
             canvas.width = image.width;
             canvas.height = image.height;
             context.drawImage(image, 0, 0);
-            const topPosRgbaData = context.getImageData(
-              0,
-              0,
-              image.width,
-              1
-            ).data;
-            const bottomPosRgbaData = context.getImageData(
-              0,
-              image.height - 1,
-              image.width,
-              1
-            ).data;
 
-            const leftPosRgbaData = context.getImageData(
-              0,
-              0,
-              1,
-              image.height
-            ).data;
-            const rightPosRgbaData = context.getImageData(
-              image.width - 1,
-              0,
-              1,
-              image.height
-            ).data;
-            // Rの値だけ取得
-            const fillDataTop = topPosRgbaData.filter(
-              (value, index) => index % 4 === 0
+            // 余白に塗りがないかチェック
+            if (checkPaddingArea({ image, context })) {
+              // parent.postMessage(
+              //   { pluginMessage: { type: "exportComplete" } },
+              //   "*"
+              // );
+              //return;
+            }
+
+            const topPosRgbaData = createRgbaArray(
+              context.getImageData(0, 0, image.width, 1).data
             );
-            const fillDataBottom = bottomPosRgbaData.filter(
-              (value, index) => index % 4 === 0
+            const bottomPosRgbaData = createRgbaArray(
+              context.getImageData(0, image.height - 1, image.width, 1).data
             );
-            const fillDataLeft = leftPosRgbaData.filter(
-              (value, index) => index % 4 === 0
+
+            const leftPosRgbaData = createRgbaArray(
+              context.getImageData(0, 0, 1, image.height).data
             );
-            const fillDataRight = rightPosRgbaData.filter(
-              (value, index) => index % 4 === 0
+            const rightPosRgbaData = createRgbaArray(
+              context.getImageData(image.width - 1, 0, 1, image.height).data
             );
-            const top = [];
-            const bottom = [];
-            const left = [];
-            const right = [];
-            let topPosData = {};
-            let bottomPosData = {};
-            let leftPosData = {};
-            let rightPosData = {};
 
-            fillDataLeft.forEach((value, index) => {
-              if (!leftPosData.start && value === 255) {
-                leftPosData.start = index;
-              } else if (leftPosData.start && value !== 255) {
-                leftPosData.end = index - 1;
-                left.push(leftPosData);
-                leftPosData = {};
-              }
-            });
-
-            fillDataRight.forEach((value, index) => {
-              if (!rightPosData.start && value === 255) {
-                rightPosData.start = index;
-              } else if (rightPosData.start && value !== 255) {
-                rightPosData.end = index - 1;
-                right.push(rightPosData);
-                rightPosData = {};
-              }
-            });
-
-            fillDataTop.forEach((value, index) => {
-              if (!topPosData.start && value === 255) {
-                topPosData.start = index;
-              } else if (topPosData.start && value !== 255) {
-                topPosData.end = index - 1;
-                top.push(topPosData);
-                topPosData = {};
-              }
-            });
-
-            fillDataBottom.forEach((value, index) => {
-              if (!bottomPosData.start && value === 255) {
-                bottomPosData.start = index;
-              } else if (bottomPosData.start && value !== 255) {
-                bottomPosData.end = index - 1;
-                bottom.push(bottomPosData);
-                bottomPosData = {};
-              }
-            });
+            const top = processFillData(topPosRgbaData);
+            const bottom = processFillData(bottomPosRgbaData);
+            const left = processFillData(leftPosRgbaData);
+            const right = processFillData(rightPosRgbaData);
 
             resolve({ top, bottom, left, right });
           };
