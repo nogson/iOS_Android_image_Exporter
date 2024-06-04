@@ -9,6 +9,11 @@ figma.on("run", ({ parameters }: RunEvent) => {
   type FormatType = "JPG" | "PNG" | "SVG" | "PDF";
   type NodesType = readonly SceneNode[];
 
+  figma.ui.postMessage({
+    type: "display-image",
+    imageUrl: "images/ninepatch.png", // Local path to the image
+  });
+
   figma.ui.onmessage = async (message) => {
     if (message.type === "export") {
       const nodes = figma.currentPage.selection;
@@ -78,8 +83,6 @@ figma.on("run", ({ parameters }: RunEvent) => {
                   value: Math.round(width * androidScale[index]),
                 },
               });
-
-              
             });
           }
           return [...iOSImages, ...androidImages];
