@@ -1,4 +1,4 @@
-figma.showUI(__html__, { width: 400, height: 300 });
+figma.showUI(__html__, { width: 400, height: 320 });
 
 figma.on("run", ({ parameters }: RunEvent) => {
   const iosSuffix = ["", "@2x", "@3x"];
